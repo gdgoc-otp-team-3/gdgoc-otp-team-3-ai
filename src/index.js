@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import multer from 'multer';
 import { generateSummary } from './services/summaryService.js';
 import { extractTextFromFile } from './services/extractionService.js';
+import { factCheckNote, extractClaims, retrieveEvidence, verifyClaim } from './services/factCheckService.js';
 
 dotenv.config();
 
@@ -91,6 +92,93 @@ app.post('/api/summarize-text', async (req, res) => {
     console.error('Error generating summary:', error);
     res.status(500).json({ 
       error: 'Failed to generate summary',
+      message: error.message 
+    });
+  }
+});
+
+// ============================================
+// FACT-CHECKING ENDPOINTS
+// ============================================
+
+// Full fact-check pipeline for entire note
+app.post('/api/fact-check', async (req, res) => {
+  try {
+    const { noteContent, subject, checkAll = false } = req.body;
+
+    if (!noteContent || noteContent.trim().length < 100) {
+      return res.status(400).json({ 
+        error: 'Note content is required and must be at least 100 characters' 
+      });
+    }
+
+    console.log(`Starting fact-check for ${subject || 'note'}...`);
+
+    const result = await factCheckNote({
+      noteContent,
+      subject,
+      checkAll,
+    });
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error fact-checking note:', error);
+    res.status(500).json({ 
+      error: 'Failed to fact-check note',
+      message: error.message 
+    });
+  }
+});
+
+// Extract claims only (for preview)
+app.post('/api/extract-claims', async (req, res) => {
+  try {
+    const { noteContent, subject } = req.body;
+
+    if (!noteContent || noteContent.trim().length < 100) {
+      return res.status(400).json({ 
+        error: 'Note content is required and must be at least 100 characters' 
+      });
+    }
+
+    console.log('Extracting claims...');
+
+    const result = await extractClaims(noteContent, subject);
+    res.json(result);
+  } catch (error) {
+    console.error('Error extracting claims:', error);
+    res.status(500).json({ 
+      error: 'Failed to extract claims',
+      message: error.message 
+    });
+  }
+});
+
+// Verify single claim (for manual checking)
+app.post('/api/verify-claim', async (req, res) => {
+  try {
+    const { claim } = req.body;
+
+    if (!claim || !claim.text) {
+      return res.status(400).json({ 
+        error: 'Claim object with text is required' 
+      });
+    }
+
+    console.log(`Verifying claim: "${claim.text.substring(0, 50)}..."`);
+
+    const evidence = await retrieveEvidence(claim);
+    const verification = await verifyClaim(claim, evidence);
+
+    res.json({
+      claim: claim,
+      verification: verification,
+      evidence: evidence,
+    });
+  } catch (error) {
+    console.error('Error verifying claim:', error);
+    res.status(500).json({ 
+      error: 'Failed to verify claim',
       message: error.message 
     });
   }
