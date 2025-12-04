@@ -186,7 +186,7 @@ export async function retrieveEvidence(claim) {
 async function searchWeb(claimText, keywords) {
   try {
     const searchQuery = `${claimText} ${keywords.join(' ')}`;
-    
+
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
@@ -281,7 +281,7 @@ async function searchEducationalResources(claimText, keywords) {
   try {
     // Khan Academy search (using web scraping or their API if available)
     const khanQuery = encodeURIComponent(`${claimText} site:khanacademy.org`);
-    
+
     // MIT OCW search
     const mitQuery = encodeURIComponent(`${claimText} site:ocw.mit.edu`);
 
@@ -455,8 +455,8 @@ export async function factCheckNote({ noteContent, subject, checkAll = false }) 
     console.log(`Extracted ${claims.length} claims`);
 
     // Filter claims based on priority if not checking all
-    const claimsToCheck = checkAll 
-      ? claims 
+    const claimsToCheck = checkAll
+      ? claims
       : claims.filter(c => c.priority === 'high' || c.priority === 'medium');
 
     console.log(`Checking ${claimsToCheck.length} claims...`);
@@ -467,18 +467,18 @@ export async function factCheckNote({ noteContent, subject, checkAll = false }) 
 
     for (let i = 0; i < claimsToCheck.length; i += batchSize) {
       const batch = claimsToCheck.slice(i, i + batchSize);
-      
+
       const batchResults = await Promise.all(
         batch.map(async (claim) => {
           try {
             console.log(`Verifying claim ${claim.id}: "${claim.text.substring(0, 50)}..."`);
-            
+
             // AGENT 2: Retrieve evidence
             const evidence = await retrieveEvidence(claim);
-            
+
             // AGENT 3: Verify claim
             const verification = await verifyClaim(claim, evidence);
-            
+
             return {
               ...claim,
               ...verification,
@@ -498,7 +498,7 @@ export async function factCheckNote({ noteContent, subject, checkAll = false }) 
       );
 
       verifiedClaims.push(...batchResults);
-      
+
       // Rate limiting delay
       if (i + batchSize < claimsToCheck.length) {
         await new Promise(resolve => setTimeout(resolve, 1000));
@@ -565,26 +565,32 @@ function generateOverallAssessment(claims) {
 
   if (criticalCount > 0) {
     return {
-      grade: 'needs_revision',
+      grade: 'C',
       message: `${criticalCount}개의 중대한 오류가 발견되었습니다. 수정이 필요합니다.`,
       color: 'red',
     };
   } else if (accuracy >= 0.9) {
     return {
-      grade: 'excellent',
-      message: '매우 정확한 노트입니다!',
+      grade: 'S',
+      message: '매우 정확한 노트입니다! (S등급)',
+      color: 'blue',
+    };
+  } else if (accuracy >= 0.8) {
+    return {
+      grade: 'A',
+      message: '정확도가 높은 우수한 노트입니다. (A등급)',
       color: 'green',
     };
-  } else if (accuracy >= 0.7) {
+  } else if (accuracy >= 0.6) {
     return {
-      grade: 'good',
-      message: '대체로 정확하지만 일부 수정이 필요합니다.',
+      grade: 'B',
+      message: '대체로 정확하지만 일부 확인이 필요합니다. (B등급)',
       color: 'yellow',
     };
   } else {
     return {
-      grade: 'poor',
-      message: '많은 부분에서 수정이 필요합니다.',
+      grade: 'C',
+      message: '많은 부분에서 수정이 필요합니다. (C등급)',
       color: 'orange',
     };
   }

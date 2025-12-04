@@ -43,7 +43,7 @@ app.post('/api/summarize', upload.single('file'), async (req, res) => {
     const extractedText = await extractTextFromFile(req.file);
 
     if (!extractedText || extractedText.trim().length < 50) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Could not extract sufficient text from file',
         details: 'The file may be too short, corrupted, or not contain readable text'
       });
@@ -58,12 +58,40 @@ app.post('/api/summarize', upload.single('file'), async (req, res) => {
       semester,
     });
 
-    res.json(summary);
+    // Run Fact Check (Accuracy)
+    console.log('Running fact check for accuracy grading...');
+    try {
+      const factCheckResult = await factCheckNote({
+        noteContent: extractedText,
+        subject: subject || 'General',
+        checkAll: false, // Check only high priority claims for speed
+      });
+
+      // Merge results
+      const responseData = {
+        ...summary,
+        accuracy: factCheckResult.report.summary.accuracy,
+        grade: factCheckResult.report.overallAssessment.grade, // S, A, B, C
+        gradeMessage: factCheckResult.report.overallAssessment.message,
+        gradeColor: factCheckResult.report.overallAssessment.color,
+      };
+
+      res.json(responseData);
+    } catch (fcError) {
+      console.error('Fact check failed, returning summary only:', fcError);
+      // Fallback if fact check fails
+      res.json({
+        ...summary,
+        accuracy: null,
+        grade: null,
+        gradeMessage: '정확도 검사 실패',
+      });
+    }
   } catch (error) {
     console.error('Error processing request:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to generate summary',
-      message: error.message 
+      message: error.message
     });
   }
 });
@@ -74,8 +102,8 @@ app.post('/api/summarize-text', async (req, res) => {
     const { text, title, subject, professor, semester } = req.body;
 
     if (!text || text.trim().length < 50) {
-      return res.status(400).json({ 
-        error: 'Text is required and must be at least 50 characters' 
+      return res.status(400).json({
+        error: 'Text is required and must be at least 50 characters'
       });
     }
 
@@ -90,9 +118,9 @@ app.post('/api/summarize-text', async (req, res) => {
     res.json(summary);
   } catch (error) {
     console.error('Error generating summary:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to generate summary',
-      message: error.message 
+      message: error.message
     });
   }
 });
@@ -107,8 +135,8 @@ app.post('/api/fact-check', async (req, res) => {
     const { noteContent, subject, checkAll = false } = req.body;
 
     if (!noteContent || noteContent.trim().length < 100) {
-      return res.status(400).json({ 
-        error: 'Note content is required and must be at least 100 characters' 
+      return res.status(400).json({
+        error: 'Note content is required and must be at least 100 characters'
       });
     }
 
@@ -123,9 +151,9 @@ app.post('/api/fact-check', async (req, res) => {
     res.json(result);
   } catch (error) {
     console.error('Error fact-checking note:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to fact-check note',
-      message: error.message 
+      message: error.message
     });
   }
 });
@@ -136,8 +164,8 @@ app.post('/api/extract-claims', async (req, res) => {
     const { noteContent, subject } = req.body;
 
     if (!noteContent || noteContent.trim().length < 100) {
-      return res.status(400).json({ 
-        error: 'Note content is required and must be at least 100 characters' 
+      return res.status(400).json({
+        error: 'Note content is required and must be at least 100 characters'
       });
     }
 
@@ -147,9 +175,9 @@ app.post('/api/extract-claims', async (req, res) => {
     res.json(result);
   } catch (error) {
     console.error('Error extracting claims:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to extract claims',
-      message: error.message 
+      message: error.message
     });
   }
 });
@@ -160,8 +188,8 @@ app.post('/api/verify-claim', async (req, res) => {
     const { claim } = req.body;
 
     if (!claim || !claim.text) {
-      return res.status(400).json({ 
-        error: 'Claim object with text is required' 
+      return res.status(400).json({
+        error: 'Claim object with text is required'
       });
     }
 
@@ -177,9 +205,9 @@ app.post('/api/verify-claim', async (req, res) => {
     });
   } catch (error) {
     console.error('Error verifying claim:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to verify claim',
-      message: error.message 
+      message: error.message
     });
   }
 });
